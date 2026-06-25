@@ -48,7 +48,9 @@ export function formatResumeForAI(resume: any): string {
   if (resume.experience?.length > 0) {
     text += `\nEXPERIENCE:\n`;
     resume.experience.forEach((exp: any) => {
-      text += `- ${exp.title} at ${exp.company} (${exp.period})\n`;
+      const title = exp.title || exp.role || '';
+      const period = exp.period || `${exp.startDate || ''} - ${exp.endDate || 'Present'}`;
+      text += `- ${title} at ${exp.company} (${period})\n`;
       text += `  ${exp.description}\n`;
     });
   }
@@ -56,15 +58,31 @@ export function formatResumeForAI(resume: any): string {
   if (resume.education?.length > 0) {
     text += `\nEDUCATION:\n`;
     resume.education.forEach((edu: any) => {
-      text += `- ${edu.degree} from ${edu.school} (${edu.year})\n`;
+      const year = edu.year || edu.endDate || '';
+      text += `- ${edu.degree} from ${edu.school} (${year})\n`;
     });
   }
 
   if (resume.skills?.length > 0) {
     text += `\nSKILLS:\n`;
-    resume.skills.forEach((skill: any) => {
-      text += `- ${skill.category}: ${skill.items?.join(', ') || ''}\n`;
-    });
+    // Skills may arrive either grouped ({ category, items: [] }) or flat
+    // ({ name, category }) depending on the caller (DB rows are flat).
+    const hasGroupedShape = resume.skills.some((s: any) => Array.isArray(s.items));
+    if (hasGroupedShape) {
+      resume.skills.forEach((skill: any) => {
+        text += `- ${skill.category}: ${skill.items?.join(', ') || ''}\n`;
+      });
+    } else {
+      const byCategory: Record<string, string[]> = {};
+      resume.skills.forEach((skill: any) => {
+        const category = skill.category || 'General';
+        byCategory[category] = byCategory[category] || [];
+        byCategory[category].push(skill.name);
+      });
+      Object.entries(byCategory).forEach(([category, names]) => {
+        text += `- ${category}: ${names.join(', ')}\n`;
+      });
+    }
   }
 
   return text;
@@ -192,21 +210,28 @@ Return ONLY valid JSON with this structure:
     {
       "name": "string",
       "platform": "string",
+      "cost": "string (e.g. 'Free' or '$49')",
+      "isFree": boolean,
       "duration": "string",
-      "url": "string"
+      "url": "string (direct clickable link)",
+      "relevanceTag": "string (which skill gap this fills)"
     }
   ],
   "certifications": ["string"],
   "roadmap": [
     {
       "phase": number,
-      "title": "string",
-      "duration": "string",
+      "title": "string (e.g. 'Quick Wins', 'Core Building', 'Job-Ready')",
+      "duration": "string (e.g. '1-3 months')",
       "actions": ["string"]
     }
   ],
   "adviceText": "string"
-}`;
+}
+
+IMPORTANT:
+- "roadmap" must contain exactly 3 phases: Phase 1 "Quick Wins" (1-3 months), Phase 2 "Core Building" (3-6 months), Phase 3 "Job-Ready" (6-12 months).
+- "recommendedCourses" must include a mix of free options (Coursera audit, edX, freeCodeCamp, Khan Academy, YouTube, MIT OCW) and paid options (Udemy, Coursera paid, bootcamps, professional certs like CompTIA/AWS/CPA), ordered with the most relevant gaps first.`;
 
   const response = await callAbacusAI([
     { role: 'system', content: systemPrompt },

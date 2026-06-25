@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { ArrowRight, Shield, FileText, TrendingUp, Crosshair, Database, Search, Target, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ResumeQuickScan from '@/components/landing/ResumeQuickScan';
 
 const FeatureCard = ({ icon, title, desc, colorClass = "border-[#b154f8]", className = "" }: any) => (
   <div className={`bg-[#111] p-8 border-2 ${colorClass} hover:-translate-y-2 transition-transform shadow-[4px_4px_0px_0px_rgba(255,255,255,0.1)] ${className}`}>
@@ -113,6 +114,8 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      <ResumeQuickScan />
 
       {/* How it Works */}
       <section className="py-24 px-4 bg-black relative overflow-hidden">
