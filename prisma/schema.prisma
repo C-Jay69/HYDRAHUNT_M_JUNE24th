@@ -1,0 +1,196 @@
+// HydraHunt Database Schema
+// Career Warfare AI Platform - Production Ready Version
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User Management
+model User {
+  id                String   @id @default(cuid())
+  email             String   @unique
+  name              String?
+  passwordHash      String?  // bcrypt hash; null for OAuth-only accounts
+  avatar            String?
+  subscriptionTier  String   @default("SCOUT") // SCOUT, HUNTER, HYDRA
+  stripeCustomerId  String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  resumes           Resume[]
+  jobStrikes         JobStrike[]
+}
+
+// Folder Management
+model ResumeFolder {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  resumes   Resume[]
+
+  @@unique([userId, name])
+}
+
+// Resume Container
+model Resume {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  folderId          String?
+  folder            ResumeFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
+  title             String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  versions          ResumeVersion[]
+  jobStrikes        JobStrike[]
+}
+
+// Resume Version (Snapshot)
+model ResumeVersion {
+  id                String   @id @default(cuid())
+  resumeId          String
+  resume            Resume     @relation(fields: [resumeId], references: [id], onDelete: Cascade)
+
+  versionNumber     Int       @default(1)
+  title             String?   // e.g., "Optimized for Google"
+  isCurrent         Boolean   @default(false)
+
+  // Personal Details
+  fullName          String
+  email             String
+  phone             String
+  location          String
+  website           String?
+  summary           String
+
+  // Template & Analysis
+  templateId        String   @default("cyber")
+  lethalityScore    Int      @default(0)
+  atsScore          Int?
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  experiences       Experience[]
+  educations        Education[]
+  skills            Skill[]
+}
+
+model Experience {
+  id                String   @id @default(cuid())
+  versionId         String
+  version           ResumeVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  title             String
+  company           String
+  location          String?
+  startDate         String
+  endDate           String   // "Present" or date
+  description       String   @db.Text
+  order             Int      @default(0)
+}
+
+model Education {
+  id                String   @id @default(cuid())
+  versionId         String
+  version           ResumeVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  school            String
+  degree            String
+  field             String?
+  startDate         String?
+  endDate           String
+  gpa               String?
+  order             Int      @default(0)
+}
+
+model Skill {
+  id                String   @id @default(cuid())
+  versionId         String
+  version           ResumeVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  name              String
+  category          String   // e.g., "Technical", "Soft"
+  level             Int      @default(3) // 1-5
+  order             Int      @default(0)
+}
+
+// Job Application Tracking (Strikes)
+model JobStrike {
+  id                String   @id @default(cuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resumeId          String?
+  resume            Resume?  @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+
+  // Job Details
+  jobTitle          String
+  company           String
+  location          String
+  jobUrl            String?
+  description       String?  @db.Text
+
+  // Strike Status
+  status            String   @default("PENDING") // PENDING, CONFIRMED, TERMINATED, INTERVIEWING, OFFER
+  matchScore        Int?     // 0-100 compatibility score
+
+  // Metadata
+  appliedAt         DateTime @default(now())
+  notes             String?  @db.Text
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Job Targets (Auto-Hunt Results)
+model JobTarget {
+  id                String   @id @default(cuid())
+
+  // Job Details
+  title             String
+  company           String
+  location          String
+  salary            String?
+  jobUrl            String
+  source            String? // LinkedIn, Indeed, etc.
+
+  // AI Analysis
+  matchScore        Int?     // Calculated match score
+  missingSkills     String?  // JSON array
+
+  // Status
+  status            String   @default("NEW") // NEW, APPLIED, SKIPPED
+  isArchived        Boolean  @default(false)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+// Analysis Reports (for versioning)
+model AnalysisReport {
+  id                String   @id @default(cuid())
+  resumeId          String
+
+  // Analysis Type
+  reportType        String   // GENERAL, JOB_SPECIFIC, ATS, TRANSITION
+  targetJob         String?  // For job-specific analysis
+
+  // Scores
+  overallScore      Int
+  strengths         String   @db.Text // JSON array
+  weaknesses        String   @db.Text // JSON array
+  improvements      String   @db.Text // JSON array of suggestions
+  detailedFeedback  String   @db.Text
+
+  createdAt         DateTime @default(now())
+}
